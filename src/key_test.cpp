@@ -121,6 +121,11 @@ void test_compare() {
    test_key(public_key(std::in_place_index<0>, eosio::ecc_public_key{1}), public_key(std::in_place_index<1>));
    test_key(public_key(eosio::webauthn_public_key{{}, eosio::webauthn_public_key::user_presence_t::USER_PRESENCE_NONE, "b"}),
             public_key(eosio::webauthn_public_key{{}, eosio::webauthn_public_key::user_presence_t::USER_PRESENCE_PRESENT, "a"}));
+   // alcor-chain: EM (3) and ED (4) order after WA, then by key bytes
+   test_key(public_key(std::in_place_index<2>), public_key(std::in_place_index<3>));
+   test_key(public_key(std::in_place_index<3>, eosio::ecc_public_key{1}), public_key(std::in_place_index<4>));
+   test_key(public_key(std::in_place_index<3>), public_key(std::in_place_index<3>, eosio::ecc_public_key{1}));
+   test_key(public_key(std::in_place_index<4>), public_key(std::in_place_index<4>, eosio::ed_public_key{1}));
 
    using namespace std::literals;
    test_key(""s, ""s);

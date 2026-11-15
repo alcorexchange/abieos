@@ -972,6 +972,93 @@ void check_types() {
                 [&] { return abieos_json_to_bin(context, 0, "signature", "true"); });
     check_error(context, "unrecognized signature format",
                 [&] { return abieos_json_to_bin(context, 0, "signature", R"("foo")"); });
+
+    // alcor-chain: EM (secp256k1, MetaMask) and ED (ed25519, Solana) keys and signatures. Expected strings are what
+    // alcor-chain's fc prints (to_string). abieos only converts between forms here, it checks no signatures:
+    // EM keys are points of secp256k1 (2G, G, 6G), the EM signature and private key are synthetic bytes, and the
+    // ED key, signature and private key are RFC 8032 test vector 1.
+    auto check_bin = [&](const char* type, const char* json, const std::string& hex) {
+        check_context(context, abieos_json_to_bin(context, 0, type, json));
+        if (check_context(context, abieos_get_bin_hex(context)) != hex)
+            throw std::runtime_error(std::string("binary mismatch: ") + json);
+    };
+    const char* em_pub = R"("PUB_EM_04c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee51ae168fea63dc339a3c58419466ceaeef7f632653266d0e1236431a950cfe52a")";
+    check_type(context, 0, "public_key", em_pub);
+    check_bin("public_key", em_pub, "0302C6047F9441ED7D6D3045406E95C07CD85C778E4B8CEF3CA7ABAC09B95C709EE5");
+    // the forms fc also parses: compressed with or without 0x, uncompressed without 04, any hex case
+    check_type(context, 0, "public_key", R"("PUB_EM_0x02c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5")", em_pub);
+    check_type(context, 0, "public_key", R"("PUB_EM_02c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5")", em_pub);
+    check_type(context, 0, "public_key", R"("PUB_EM_c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee51ae168fea63dc339a3c58419466ceaeef7f632653266d0e1236431a950cfe52a")", em_pub);
+    check_type(context, 0, "public_key", R"("PUB_EM_0x04C6047F9441ED7D6D3045406E95C07CD85C778E4B8CEF3CA7ABAC09B95C709EE51AE168FEA63DC339A3C58419466CEAEEF7F632653266D0E1236431A950CFE52A")", em_pub);
+    // both y parities: G (even y) and 6G (odd y)
+    check_type(context, 0, "public_key", R"("PUB_EM_0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798")",
+               R"("PUB_EM_0479be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8")");
+    check_type(context, 0, "public_key", R"("PUB_EM_03fff97bd5755eeea420453a14355235d382f6472f8568a18b2f057a1460297556")",
+               R"("PUB_EM_04fff97bd5755eeea420453a14355235d382f6472f8568a18b2f057a1460297556ae12777aacfbb620f3be96017f45c560de80f0f6518fe4a03c870c36b075f297")");
+    check_bin("public_key", R"("PUB_EM_04fff97bd5755eeea420453a14355235d382f6472f8568a18b2f057a1460297556ae12777aacfbb620f3be96017f45c560de80f0f6518fe4a03c870c36b075f297")",
+              "0303FFF97BD5755EEEA420453A14355235D382F6472F8568A18B2F057A1460297556");
+    // a stored key that is not on the curve (x = 5) prints as its compressed bytes and parses back to them
+    check(abieos_hex_to_json(context, 0, "public_key", "03020000000000000000000000000000000000000000000000000000000000000005") ==
+              std::string(R"("PUB_EM_020000000000000000000000000000000000000000000000000000000000000005")"),
+          "EM key off the curve");
+    check_type(context, 0, "public_key", R"("PUB_EM_020000000000000000000000000000000000000000000000000000000000000005")");
+    check_error(context, "EM key: uncompressed point off the curve", [&] {
+        return abieos_json_to_bin(context, 0, "public_key", R"("PUB_EM_04c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee51ae168fea63dc339a3c58419466ceaeef7f632653266d0e1236431a950cfe52b")");
+    });
+    check_error(context, "EM key: bare x", [&] {
+        return abieos_json_to_bin(context, 0, "public_key", R"("PUB_EM_0xc6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5")");
+    });
+    check_error(context, "EM key: bad prefix", [&] {
+        return abieos_json_to_bin(context, 0, "public_key", R"("PUB_EM_05c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5")");
+    });
+    check_error(context, "EM key: not hex", [&] {
+        return abieos_json_to_bin(context, 0, "public_key", R"("PUB_EM_02z6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5")");
+    });
+    check_error(context, "EM key: empty", [&] { return abieos_json_to_bin(context, 0, "public_key", R"("PUB_EM_")"); });
+
+    const char* ed_pub = R"("PUB_ED_FVen3X669xLzsi6N2V91DoiyzHzg1uAgqiT8jZ9nS96Z")";
+    check_type(context, 0, "public_key", ed_pub);
+    check_bin("public_key", ed_pub, "04D75A980182B10AB7D54BFED3C964073A0EE172F3DAA62325AF021A68F707511A");
+    check_type(context, 0, "public_key", R"("PUB_ED_11111111111111111111111111111111")");
+    check_type(context, 0, "public_key", R"("PUB_ED_4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi")");
+    check_error(context, "ED key: 31 bytes", [&] {
+        return abieos_json_to_bin(context, 0, "public_key", R"("PUB_ED_1111111111111111111111111111111")");
+    });
+    check_error(context, "ED key: too long", [&] {
+        return abieos_json_to_bin(context, 0, "public_key", R"("PUB_ED_5Jj5w8Jgtj6czioch8VRc9HCwJfdcjRquSg4b4Rqou49YD4LDTa6GTZWeHR3JWMZaGdcgsHn1kik3jJJost7b4MP")");
+    });
+    check_error(context, "ED key: not base58", [&] {
+        return abieos_json_to_bin(context, 0, "public_key", R"("PUB_ED_0Ven3X669xLzsi6N2V91DoiyzHzg1uAgqiT8jZ9nS96Z")");
+    });
+
+    const char* em_sig = R"("SIG_EM_0x111111111111111111111111111111111111111111111111111111111111111122222222222222222222222222222222222222222222222222222222222222221b")";
+    check_type(context, 0, "signature", em_sig);
+    check_bin("signature", em_sig, "03111111111111111111111111111111111111111111111111111111111111111122222222222222222222222222222222222222222222222222222222222222221B");
+    check_type(context, 0, "signature", R"("SIG_EM_111111111111111111111111111111111111111111111111111111111111111122222222222222222222222222222222222222222222222222222222222222221B")", em_sig);
+    check_error(context, "EM signature: 64 bytes", [&] {
+        return abieos_json_to_bin(context, 0, "signature", R"("SIG_EM_0x11111111111111111111111111111111111111111111111111111111111111112222222222222222222222222222222222222222222222222222222222222222")");
+    });
+
+    const char* ed_sig = R"("SIG_ED_2HBfyaziHCpyEmPqurRhohVzQLjAVUmDZRRiw5pSSgUMtBWhAWhdKtjjBmmCr3KmzTE6tenJRL4Xzt9J2bH5BWnfH2VqGtMURkHwKbZuPsFArSWFLWjwgFdWGvtECzWZya8r")";
+    check_type(context, 0, "signature", ed_sig);
+    check_bin("signature", ed_sig, "04D75A980182B10AB7D54BFED3C964073A0EE172F3DAA62325AF021A68F707511AE5564300C360AC729086E2CC806E828A84877F1EB8E5D974D873E065224901555FB8821590A33BACC61E39701CF9B46BD25BF5F0595BBE24655141438E7A100B");
+    check_error(context, "ED signature: public key only", [&] {
+        return abieos_json_to_bin(context, 0, "signature", R"("SIG_ED_FVen3X669xLzsi6N2V91DoiyzHzg1uAgqiT8jZ9nS96Z")");
+    });
+
+    const char* em_pvt = R"("PVT_EM_0x0000000000000000000000000000000000000000000000000000000000000001")";
+    check_type(context, 0, "private_key", em_pvt);
+    check_bin("private_key", em_pvt, "020000000000000000000000000000000000000000000000000000000000000001");
+    check_type(context, 0, "private_key", R"("PVT_EM_0000000000000000000000000000000000000000000000000000000000000001")", em_pvt);
+    const char* ed_pvt = R"("PVT_ED_49W385L4rePHy6PAaQUovbD2aacgN4HsKXSMeUzRg4fmwXszN91JuMFrQRj3vMDpZuRF3ZknQBuRBoWQJEfXstMw")";
+    check_type(context, 0, "private_key", ed_pvt);
+    check_bin("private_key", ed_pvt, "039D61B19DEFFD5A60BA844AF492EC2CC44449C5697B326919703BAC031CAE7F60D75A980182B10AB7D54BFED3C964073A0EE172F3DAA62325AF021A68F707511A");
+    check_error(context, "EM private key: 31 bytes", [&] {
+        return abieos_json_to_bin(context, 0, "private_key", R"("PVT_EM_0x00000000000000000000000000000000000000000000000000000000000001")");
+    });
+
+    // K1, R1 and WA are unchanged and keep their indexes
+    check_bin("public_key", R"("PUB_K1_11111111111111111111111111111111149Mr2R")", "00" + std::string(66, '0'));
     check_type(context, 0, "symbol_code", R"("A")");
     check_type(context, 0, "symbol_code", R"("B")");
     check_type(context, 0, "symbol_code", R"("SYS")");

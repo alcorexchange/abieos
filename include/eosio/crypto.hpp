@@ -27,6 +27,13 @@ namespace eosio {
 using ecc_public_key = std::array<char, 33>;
 
 /**
+ *  alcor-chain: ED public key (ed25519, as a Solana address), 32 bytes
+ *
+ *  @ingroup public_key
+ */
+using ed_public_key = std::array<char, 32>;
+
+/**
  *  EOSIO WebAuthN public key
  *
  *  @ingroup public_key
@@ -65,13 +72,18 @@ EOSIO_COMPARE(webauthn_public_key);
  *   0 : a ECC K1 public key
  *   1 : a ECC R1 public key
  *   2 : a WebAuthN public key (requires the host chain to activate the WEBAUTHN_KEY consensus upgrade)
+ *   3 : alcor-chain: an EM public key (secp256k1, Ethereum / MetaMask), compressed like K1
+ *   4 : alcor-chain: an ED public key (ed25519, Solana)
  *
  *  @ingroup public_key
  */
-using public_key = std::variant<ecc_public_key, ecc_public_key, webauthn_public_key>;
+using public_key = std::variant<ecc_public_key, ecc_public_key, webauthn_public_key, ecc_public_key, ed_public_key>;
 
+/// alcor-chain: ED private key, the 64-byte libsodium secret key (seed ‖ public key)
+using ed_private_key  = std::array<char, 64>;
 using ecc_private_key = std::array<char, 32>;
-using private_key     = std::variant<ecc_private_key, ecc_private_key>;
+/// 0 : K1, 1 : R1, 2 : alcor-chain EM (raw secp256k1 secret), 3 : alcor-chain ED
+using private_key     = std::variant<ecc_private_key, ecc_private_key, ecc_private_key, ed_private_key>;
 
 /**
  *  EOSIO ECC signature data
@@ -104,7 +116,11 @@ struct webauthn_signature {
 EOSIO_REFLECT(webauthn_signature, compact_signature, auth_data, client_json);
 EOSIO_COMPARE(webauthn_signature);
 
-using signature = std::variant<ecc_signature, ecc_signature, webauthn_signature>;
+/// alcor-chain: ED signature, 96 bytes = public key (32) ‖ ed25519 signature (64)
+using ed_signature = std::array<char, 96>;
+
+/// 0 : K1, 1 : R1, 2 : WebAuthN, 3 : alcor-chain EM (r ‖ s ‖ v, v = 27 + recid), 4 : alcor-chain ED
+using signature = std::variant<ecc_signature, ecc_signature, webauthn_signature, ecc_signature, ed_signature>;
 constexpr const char* get_type_name(public_key*) { return "public_key"; }
 constexpr const char* get_type_name(private_key*) { return "private_key"; }
 constexpr const char* get_type_name(signature*) { return "signature"; }
