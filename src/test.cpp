@@ -846,11 +846,14 @@ void check_types() {
     check_type(context, 0, "time_point", R"("2000-12-31T23:59:59.999999")", R"("2000-12-31T23:59:59.999")");
     check_error(context, "expected string containing time_point",
                 [&] { return abieos_json_to_bin(context, 0, "time_point", "true"); });
+#if EOSIO_BLOCK_INTERVAL_MS == 500 && EOSIO_BLOCK_TIMESTAMP_EPOCH_MS == 946684800000
+    // stock slot length and epoch; other values are covered by test_abieos_block_time*
     check_type(context, 0, "block_timestamp_type", R"("2000-01-01T00:00:00.000")");
     check_type(context, 0, "block_timestamp_type", R"("2000-01-01T00:00:00.500")");
     check_type(context, 0, "block_timestamp_type", R"("2000-01-01T00:00:01.000")");
     check_type(context, 0, "block_timestamp_type", R"("2018-06-15T19:17:47.500")");
     check_type(context, 0, "block_timestamp_type", R"("2018-06-15T19:17:48.000")");
+#endif
     check_error(context, "expected string containing block_timestamp_type",
                 [&] { return abieos_json_to_bin(context, 0, "block_timestamp_type", "true"); });
     check_type(context, 0, "name", R"("")");

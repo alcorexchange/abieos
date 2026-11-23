@@ -35,6 +35,18 @@ endif()
 find_package(Threads)
 include(GNUInstallDirs)
 
+# Block slot length and slot-0 time (include/eosio/time.hpp). Empty keeps the stock values (500 ms, 2000-01-01);
+# alcor-chain: -DEOSIO_BLOCK_INTERVAL_MS=200 -DEOSIO_BLOCK_TIMESTAMP_EPOCH_MS=1735689600000
+set(EOSIO_BLOCK_INTERVAL_MS "" CACHE STRING "block interval in ms (empty: 500)")
+set(EOSIO_BLOCK_TIMESTAMP_EPOCH_MS "" CACHE STRING "slot 0 time in ms since 1970 (empty: 946684800000)")
+set(ABIEOS_BLOCK_TIME_DEFINITIONS "")
+if(EOSIO_BLOCK_INTERVAL_MS)
+  list(APPEND ABIEOS_BLOCK_TIME_DEFINITIONS "EOSIO_BLOCK_INTERVAL_MS=${EOSIO_BLOCK_INTERVAL_MS}")
+endif()
+if(EOSIO_BLOCK_TIMESTAMP_EPOCH_MS)
+  list(APPEND ABIEOS_BLOCK_TIME_DEFINITIONS "EOSIO_BLOCK_TIMESTAMP_EPOCH_MS=${EOSIO_BLOCK_TIMESTAMP_EPOCH_MS}ll")
+endif()
+
 add_library(abieos STATIC src/abi.cpp src/crypto.cpp)
 target_include_directories(abieos PUBLIC 
                           "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>/include" 
@@ -44,6 +56,7 @@ target_include_directories(abieos PUBLIC
 if(ABIEOS_NO_INT128)
 target_compile_definitions(abieos PUBLIC ABIEOS_NO_INT128)
 endif()
+target_compile_definitions(abieos PUBLIC ${ABIEOS_BLOCK_TIME_DEFINITIONS})
 
 add_library(abieos_module MODULE src/abieos.cpp src/abi.cpp src/crypto.cpp)
 target_include_directories(abieos_module PUBLIC 
@@ -52,6 +65,7 @@ target_include_directories(abieos_module PUBLIC
                           "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
 
 target_link_libraries(abieos_module ${CMAKE_THREAD_LIBS_INIT})
+target_compile_definitions(abieos_module PRIVATE ${ABIEOS_BLOCK_TIME_DEFINITIONS})
 set_target_properties(abieos_module PROPERTIES OUTPUT_NAME "abieos")
 
 enable_testing()
@@ -69,6 +83,19 @@ endif()
 add_executable(test_abieos_key src/key_test.cpp src/abieos.cpp)
 target_link_libraries(test_abieos_key abieos ${CMAKE_THREAD_LIBS_INIT})
 add_test(NAME test_abieos_key COMMAND test_abieos_key)
+
+# a real ACC testnet block, decoded with the stock constants and with the ACC ones (see the test)
+add_executable(test_abieos_block_time src/block_time_test.cpp src/abieos.cpp src/abi.cpp src/crypto.cpp src/ship.abi.cpp)
+target_include_directories(test_abieos_block_time PRIVATE include external/rapidjson/include)
+target_compile_definitions(test_abieos_block_time PRIVATE EOSIO_BLOCK_INTERVAL_MS=500 EOSIO_BLOCK_TIMESTAMP_EPOCH_MS=946684800000ll)
+target_link_libraries(test_abieos_block_time ${CMAKE_THREAD_LIBS_INIT})
+add_test(NAME test_abieos_block_time COMMAND test_abieos_block_time)
+
+add_executable(test_abieos_block_time_acc src/block_time_test.cpp src/abieos.cpp src/abi.cpp src/crypto.cpp src/ship.abi.cpp)
+target_include_directories(test_abieos_block_time_acc PRIVATE include external/rapidjson/include)
+target_compile_definitions(test_abieos_block_time_acc PRIVATE EOSIO_BLOCK_INTERVAL_MS=200 EOSIO_BLOCK_TIMESTAMP_EPOCH_MS=1735689600000ll)
+target_link_libraries(test_abieos_block_time_acc ${CMAKE_THREAD_LIBS_INIT})
+add_test(NAME test_abieos_block_time_acc COMMAND test_abieos_block_time_acc)
 
 add_executable(test_abieos_reflect src/reflect_test.cpp)
 target_include_directories(test_abieos_reflect PRIVATE include)

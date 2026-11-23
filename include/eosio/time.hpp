@@ -7,6 +7,16 @@
 #include <stdint.h>
 #include <string>
 
+// Block slot length and slot-0 time. Defaults are stock Antelope (500 ms, 2000-01-01); a chain with
+// other values builds abieos with e.g. -DEOSIO_BLOCK_INTERVAL_MS=200 -DEOSIO_BLOCK_TIMESTAMP_EPOCH_MS=1735689600000
+// (the CMake options of the same names set them). Same names as in our CDT fork.
+#ifndef EOSIO_BLOCK_INTERVAL_MS
+#define EOSIO_BLOCK_INTERVAL_MS 500
+#endif
+#ifndef EOSIO_BLOCK_TIMESTAMP_EPOCH_MS
+#define EOSIO_BLOCK_TIMESTAMP_EPOCH_MS 946684800000ll
+#endif
+
 namespace eosio {
 /**
  *  @defgroup time
@@ -226,8 +236,8 @@ class block_timestamp {
    bool                     operator==(const block_timestamp& t) const { return slot == t.slot; }
    bool                     operator!=(const block_timestamp& t) const { return slot != t.slot; }
    uint32_t                 slot                  = 0;
-   static constexpr int32_t block_interval_ms     = 500;
-   static constexpr int64_t block_timestamp_epoch = 946684800000ll; // epoch is year 2000
+   static constexpr int32_t block_interval_ms     = EOSIO_BLOCK_INTERVAL_MS;
+   static constexpr int64_t block_timestamp_epoch = EOSIO_BLOCK_TIMESTAMP_EPOCH_MS;
                                                                     /// @endcond
  private:
    void set_time_point(const time_point& t) {
